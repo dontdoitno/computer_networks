@@ -1,0 +1,64 @@
+scope: my_cluster
+name: postgresql1  # изменения
+
+restapi:
+  listen: pg-slave:8008  # изменения
+  connect_address: pg-slave:8008  # изменения
+
+zookeeper:
+  hosts:
+    - zoo:2181
+
+bootstrap:
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 10
+    maximum_lag_on_failover: 10485760
+    synchronous_mode: true
+    postgresql:
+      use_pg_rewind: true
+      use_slots: true
+      parameters:
+        wal_level: replica
+        hot_standby: "on"
+        wal_keep_segments: 32
+        max_wal_senders: 10
+        max_replication_slots: 10
+        archive_mode: "on"
+        archive_command: 'test ! -f /var/lib/postgresql/wal_archive/%f && cp %p /var/lib/postgresql/wal_archive/%f'
+        archive_timeout: 60
+  pg_hba:
+  - host replication replicator 0.0.0.0/0 md5
+  - host all all 0.0.0.0/0 md5
+
+postgresql:
+  listen: 0.0.0.0:5432
+  connect_address: pg-slave:5432  # изменения
+  data_dir: /var/lib/postgresql/data/postgresql1  # изменения
+  bin_dir: /usr/lib/postgresql/15/bin
+  pgpass: /tmp/pgpass0
+  remove_data_directory_on_rewind_failure: true
+  authentication:
+    replication:
+      username: replicator
+      password: rep-pass
+    superuser:
+      username: postgres
+      password: postgres
+  parameters:
+    unix_socket_directories: '.'
+    wal_keep_segments: 64
+    max_wal_size: 1GB
+
+recovery_conf:
+  restore_command: 'cp /var/lib/postgresql/wal_archive/%f %p'
+
+watchdog:
+  mode: off
+
+tags:
+  nofailover: false
+  noloadbalance: false
+  clonefrom: false
+  nosync: false

@@ -1,0 +1,67 @@
+services:
+  pg-master:
+    build: .
+    image: localhost/postgres:patroni
+    container_name: pg-master
+    restart: always
+    hostname: pg-master
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      PGDATA: '/var/lib/postgresql/data/pgdata'
+    expose:
+      - 8008
+    ports:
+      - 5433:5432
+    volumes:
+      - pg-master:/var/lib/postgresql/data
+      - pg-wal-archive:/var/lib/postgresql/wal_archive # Архив WAL для синхронизации
+    command: patroni /postgres0.yml
+
+  pg-slave:
+    build: .
+    image: localhost/postgres:patroni
+    container_name: pg-slave
+    restart: always
+    hostname: pg-slave
+    expose:
+      - 8008
+    ports:
+      - 5434:5432
+    volumes:
+      - pg-slave:/var/lib/postgresql/data
+      - pg-wal-archive:/var/lib/postgresql/wal_archive # Архив WAL для синхронизации
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      PGDATA: '/var/lib/postgresql/data/pgdata'
+    command: patroni /postgres1.yml
+
+  zoo:
+    image: confluentinc/cp-zookeeper:7.7.1
+    container_name: zoo
+    restart: always
+    hostname: zoo
+    ports:
+      - 2181:2181
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  haproxy:
+    image: haproxy:3.0
+    container_name: postgres_entrypoint
+    ports:
+      - 5432:5432
+      - 7007:7007
+    depends_on:
+      - pg-master
+      - pg-slave
+      - zoo
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
+
+volumes:
+  pg-master:
+  pg-slave:
+  pg-wal-archive:
